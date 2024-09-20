@@ -25,8 +25,13 @@ jobs:
 
       - name: Build and push Docker image
         run: |
-          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/reactjs-app:latest .
+
+          # Get the latest commit hash
+          COMMIT_HASH=$(git rev-parse --short HEAD)
+
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/reactjs-app:latest . -t ${{ secrets.DOCKERHUB_USERNAME }}/reactjs-app:${COMMIT_HASH} .
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/reactjs-app:latest
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/reactjs-app:${COMMIT_HASH}
 
       - name: Deploy Docker container
         uses: appleboy/ssh-action@v0.1.7
@@ -39,6 +44,10 @@ jobs:
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/reactjs-app:latest
             docker stop my-reactjs-container || true
             docker rm my-reactjs-container || true
-            docker run -d --name my-reactjs-container -p 80:80 ${{ secrets.DOCKERHUB_USERNAME }}/reactjs-app:latest
+            docker run -d --name my-reactjs-container \
+                -p 80:80 -p 443:443 \
+                -v /etc/letsencrypt/live/adnansabovic.online:/etc/letsencrypt/live/adnansabovic.online \
+                -v /etc/letsencrypt/archive/adnansabovic.online:/etc/letsencrypt/archive/adnansabovic.online \
+                ${{ secrets.DOCKERHUB_USERNAME }}/reactjs-app:latest
 
 
