@@ -52,14 +52,21 @@ jobs:
       - name: Deploy Docker container
         run: |
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.ROUTER_PORT }} ${{ secrets.RPI5_USERNAME }}@${{ secrets.ROUTER_PUBLIC_IP }} << 'EOF'
+            # Pull the latest image from Docker Hub
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/reactjs-app:latest
-            docker stop my-reactjs-container || true
-            docker rm my-reactjs-container || true
+
+            # Stop and remove the container if it exists
+            if [ "$(docker ps -aq -f name=my-reactjs-container)" ]; then
+                docker stop my-reactjs-container
+                docker rm my-reactjs-container
+            fi
+
+            # Run a new container with the latest image
             docker run -d --name my-reactjs-container \
                 -p 80:80 -p 443:443 \
                 -v /etc/letsencrypt/live/adnansabovic.online:/etc/letsencrypt/live/adnansabovic.online \
                 -v /etc/letsencrypt/archive/adnansabovic.online:/etc/letsencrypt/archive/adnansabovic.online \
-                ${{ secrets.DOCKERHUB_USERNAME }}/reactjs-app:latest      
+                ${{ secrets.DOCKERHUB_USERNAME }}/reactjs-app:latest
           EOF
 
 
