@@ -29,16 +29,29 @@ jobs:
           # Get the latest commit hash
           COMMIT_HASH=$(git rev-parse --short HEAD)
 
-          docker buildx build -t ${{ secrets.DOCKERHUB_USERNAME }}/reactjs-app:latest -t ${{ secrets.DOCKERHUB_USERNAME }}/reactjs-app:${COMMIT_HASH} . --push
+          docker buildx build --platform linux/arm64 -t ${{ secrets.DOCKERHUB_USERNAME }}/reactjs-app:latest -t ${{ secrets.DOCKERHUB_USERNAME }}/reactjs-app:${COMMIT_HASH} . --push
+
+      - name: Set up SSH private key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{secrets.DIGITALOCEAN_SSH_PRIVATE_KEY_2}}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+      
+      - name: Set up SSH tunnel
+        run : |
+          echo "Setting up SSH tunnel..."
+          ssh -o StrictHostKeyChecking=no -L ${{ secrets.ROUTER_PORT }}:${{ secrets.RPI5_IP }}:${{ secrets.PORT }} ${{ secrets.RPI5_USERNAME }}@${{ secrets.ROUTER_PUBLIC_IP }} -p ${{
+            secrets.ROUTER_PORT }} -N &
+          sleep 5  # Wait for the tunnel to establish
+
+      - name: Test SSH connection
+        run: |
+          echo "Testing SSH connection to the local machine through the tunnel..."
+          ssh -o StrictHostKeyChecking=no -p ${{ secrets.ROUTER_PORT }} ${{ secrets.RPI5_USERNAME }}@${{ secrets.ROUTER_PUBLIC_IP }} "echo Connection Successful"
 
       - name: Deploy Docker container
-        uses: appleboy/ssh-action@v0.1.7
-        with:
-          host: ${{ secrets.DIGITALOCEAN_VM_IP }}
-          username: ${{ secrets.DIGITALOCEAN_VM_USERNAME }}
-          key: ${{ secrets.DIGITALOCEAN_SSH_PRIVATE_KEY }}
-          port: ${{ secrets.PORT }}
-          script: |
+        run: |
+          ssh -o StrictHostKeyChecking=no -p ${{ secrets.ROUTER_PORT }} ${{ secrets.RPI5_USERNAME }}@${{ secrets.ROUTER_PUBLIC_IP }} << 'EOF'
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/reactjs-app:latest
             docker stop my-reactjs-container || true
             docker rm my-reactjs-container || true
@@ -46,6 +59,7 @@ jobs:
                 -p 80:80 -p 443:443 \
                 -v /etc/letsencrypt/live/adnansabovic.online:/etc/letsencrypt/live/adnansabovic.online \
                 -v /etc/letsencrypt/archive/adnansabovic.online:/etc/letsencrypt/archive/adnansabovic.online \
-                ${{ secrets.DOCKERHUB_USERNAME }}/reactjs-app:latest
+                ${{ secrets.DOCKERHUB_USERNAME }}/reactjs-app:latest      
+          EOF
 
 
